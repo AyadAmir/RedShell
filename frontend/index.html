@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RedShell — Security Assessment Platform</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0B0E11;
+    --panel:#12161B;
+    --panel-raised:#161B21;
+    --border:#1F2730;
+    --border-soft:#181E25;
+    --text:#E4E9ED;
+    --text-dim:#8993A1;
+    --text-faint:#525C68;
+    --accent:#3FD0E8;
+    --accent-dim:#1F6E7C;
+    --accent-glow:rgba(63,208,232,0.15);
+    --crit:#FF4757;
+    --high:#FF8C42;
+    --med:#FFD43B;
+    --low:#5FB8E8;
+    --info:#6B7785;
+    --ok:#3FE885;
+    --mono:'JetBrains Mono', monospace;
+    --sans:'Inter', sans-serif;
+    --radius:6px;
+  }
+
+  *{box-sizing:border-box; margin:0; padding:0;}
+
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:var(--sans);
+    font-size:14px;
+    line-height:1.5;
+    overflow-x:hidden;
+  }
+
+  /* Subtle ambient scan-grid background */
+  body::before{
+    content:'';
+    position:fixed; inset:0;
+    background-image:
+      linear-gradient(var(--border-soft) 1px, transparent 1px),
+      linear-gradient(90deg, var(--border-soft) 1px, transparent 1px);
+    background-size:48px 48px;
+    opacity:0.35;
+    pointer-events:none;
+    z-index:0;
+  }
+
+  .app{
+    display:grid;
+    grid-template-columns:220px 1fr;
+    grid-template-rows:56px 1fr;
+    grid-template-areas:
+      "topbar topbar"
+      "sidebar main";
+    height:100vh;
+    position:relative;
+    z-index:1;
+  }
+
+  /* ---------- TOP BAR ---------- */
+  .topbar{
+    grid-area:topbar;
+    background:var(--panel);
+    border-bottom:1px solid var(--border);
+    display:flex;
+    align-items:center;
+    padding:0 20px;
+    gap:16px;
+  }
+  .brand{
+    display:flex; align-items:center; gap:10px;
+    font-family:var(--mono);
+    font-weight:800;
+    font-size:16px;
+    letter-spacing:0.5px;
+  }
+  .brand-mark{
+    width:22px; height:22px;
+    position:relative;
+    flex-shrink:0;
+  }
+  .brand-mark svg{ width:100%; height:100%; }
+  .brand-sub{
+    color:var(--text-faint);
+    font-weight:500;
+    font-size:11px;
+    letter-spacing:1.5px;
+    text-transform:uppercase;
+    padding-left:10px;
+    border-left:1px solid var(--border);
+  }
+  .topbar-spacer{ flex:1; }
+  .topbar-target{
+    font-family:var(--mono);
+    font-size:12px;
+    color:var(--text-dim);
+    background:var(--panel-raised);
+    border:1px solid var(--border);
+    padding:6px 12px;
+    border-radius:var(--radius);
+  }
+  .topbar-target span{ color:var(--accent); }
+  .ai-pill{
+    display:flex; align-items:center; gap:6px;
+    font-family:var(--mono);
+    font-size:11px;
+    padding:6px 10px;
+    border-radius:99px;
+    border:1px solid var(--border);
+    color:var(--text-dim);
+  }
+  .ai-pill.on{ color:var(--ok); border-color:rgba(63,232,133,0.3); }
+  .ai-pill.off{ color:var(--text-faint); }
+  .ai-dot{ width:6px; height:6px; border-radius:50%; background:currentColor; }
+  .ai-pill.on .ai-dot{ box-shadow:0 0 8px var(--ok); animation:pulse-dot 2s infinite; }
+
+  @keyframes pulse-dot{
+    0%,100%{ opacity:1; }
+    50%{ opacity:0.4; }
+  }
+
+  /* ---------- SIDEBAR ---------- */
+  .sidebar{
+    grid-area:sidebar;
+    background:var(--panel);
+    border-right:1px solid var(--border);
+    padding:16px 10px;
+    display:flex;
+    flex-direction:column;
+    gap:2px;
+    overflow-y:auto;
+  }
+  .nav-label{
+    font-family:var(--mono);
+    font-size:10px;
+    letter-spacing:1.5px;
+    text-transform:uppercase;
+    color:var(--text-faint);
+    padding:14px 10px 6px;
+  }
+  .nav-item{
+    display:flex; align-items:center; gap:10px;
+    padding:9px 10px;
+    border-radius:var(--radius);
+    color:var(--text-dim);
+    font-size:13px;
+    font-weight:500;
+    cursor:pointer;
+    border:1px solid transparent;
+    transition:background 0.12s, color 0.12s, border-color 0.12s;
+    user-select:none;
+  }
+  .nav-item:hover{ background:var(--panel-raised); color:var(--text); }
+  .nav-item.active{
+    background:var(--accent-glow);
+    color:var(--accent);
+    border-color:var(--accent-dim);
+  }
+  .nav-item svg{ width:15px; height:15px; flex-shrink:0; opacity:0.85; }
+  .nav-badge{
+    margin-left:auto;
+    font-family:var(--mono);
+    font-size:10px;
+    background:var(--crit);
+    color:#fff;
+    border-radius:99px;
+    padding:1px 6px;
+    display:none;
+  }
+  .nav-badge.show{ display:inline-block; }
+
+  /* ---------- MAIN ---------- */
+  .main{
+    grid-area:main;
+    overflow-y:auto;
+    padding:28px 32px 60px;
+  }
+  .view{ display:none; animation:fade-in 0.25s ease; max-width:1180px; }
+  .view.active{ display:block; }
+  @keyframes fade-in{
+    from{ opacity:0; transform:translateY(4px); }
+    to{ opacity:1; transform:translateY(0); }
+  }
+
+  .view-header{ margin-bottom:24px; }
+  .view-title{
+    font-family:var(--mono);
+    font-size:20px;
+    font-weight:700;
+    letter-spacing:0.3px;
+    margin-bottom:4px;
+  }
+  .view-desc{ color:var(--text-dim); font-size:13px; max-width:640px; }
+
+  /* ---------- CARDS / PANELS ---------- */
+  .panel{
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:8px;
+    padding:20px;
+    margin-bottom:18px;
+  }
+  .panel-title{
+    font-family:var(--mono);
+    font-size:12px;
+    letter-spacing:1px;
+    text-transform:uppercase;
+    color:var(--text-dim);
+    margin-bottom:14px;
+    display:flex; align-items:center; gap:8px;
+  }
+
+  /* ---------- FORM ELEMENTS ---------- */
+  .field-row{ display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; }
+  .field{ display:flex; flex-direction:column; gap:6px; flex:1; min-width:200px; }
+  .field label{ font-size:11px; color:var(--text-faint); font-weight:600; letter-spacing:0.3px; text-transform:uppercase; }
+  .field input[type=text], .field input[type=url]{
+    background:var(--bg);
+    border:1px solid var(--border);
+    color:var(--text);
+    padding:10px 12px;
+    border-radius:var(--radius);
+    font-family:var(--mono);
+    font-size:13px;
+    outline:none;
+    transition:border-color 0.15s, box-shadow 0.15s;
+  }
+  .field input:focus{ border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-glow); }
+  .checkrow{ display:flex; gap:18px; margin-top:14px; flex-wrap:wrap; }
+  .checkitem{ display:flex; align-items:center; gap:7px; font-size:12px; color:var(--text-dim); cursor:pointer; user-select:none; }
+  .checkitem input{ accent-color:var(--accent); width:14px; height:14px; cursor:pointer; }
+
+  .btn{
+    font-family:var(--mono);
+    font-weight:600;
+    font-size:13px;
+    padding:10px 20px;
+    border-radius:var(--radius);
+    border:1px solid var(--accent-dim);
+    background:var(--accent-glow);
+    color:var(--accent);
+    cursor:pointer;
+    transition:background 0.15s, transform 0.05s;
+    white-space:nowrap;
+  }
+  .btn:hover{ background:rgba(63,208,232,0.25); }
+  .btn:active{ transform:scale(0.98); }
+  .btn:disabled{ opacity:0.4; cursor:not-allowed; }
+  .btn.secondary{ background:transparent; border-color:var(--border); color:var(--text-dim); }
+  .btn.secondary:hover{ background:var(--panel-raised); color:var(--text); }
+  .btn.danger{ border-color:rgba(255,71,87,0.4); color:var(--crit); background:rgba(255,71,87,0.08); }
+  .btn-sm{ padding:6px 12px; font-size:11px; }
+
+  /* ---------- LEGAL BANNER ---------- */
+  .legal-banner{
+    display:flex; gap:10px; align-items:flex-start;
+    background:rgba(255,212,59,0.06);
+    border:1px solid rgba(255,212,59,0.25);
+    border-radius:var(--radius);
+    padding:12px 14px;
+    margin-bottom:20px;
+    font-size:12px;
+    color:#D9C36A;
+  }
+  .legal-banner svg{ width:16px; height:16px; flex-shrink:0; margin-top:1px; }
+  .legal-banner b{ color:#F0DA85; }
+
+  /* ---------- SCROLLBAR ---------- */
+  ::-webkit-scrollbar{ width:9px; height:9px; }
+  ::-webkit-scrollbar-track{ background:transparent; }
+  ::-webkit-scrollbar-thumb{ background:var(--border); border-radius:99px; }
+  ::-webkit-scrollbar-thumb:hover{ background:var(--text-faint); }
+
+  /* ---------- SCAN SWEEP (signature element) ---------- */
+  .sweep-stage{
+    position:relative;
+    background:var(--bg);
+    border:1px solid var(--border);
+    border-radius:8px;
+    height:140px;
+    overflow:hidden;
+    margin-bottom:16px;
+    display:none;
+  }
+  .sweep-stage.active{ display:block; }
+  .sweep-grid{
+    position:absolute; inset:0;
+    background-image:radial-gradient(circle, var(--border) 1px, transparent 1px);
+    background-size:18px 18px;
+    opacity:0.5;
+  }
+  .sweep-line{
+    position:absolute; top:0; bottom:0; width:120px;
+    background:linear-gradient(90deg, transparent, var(--accent-glow) 40%, var(--accent) 100%);
+    filter:blur(0.5px);
+    animation:sweep-move 2.2s linear infinite;
+  }
+  @keyframes sweep-move{
+    0%{ left:-120px; }
+    100%{ left:100%; }
+  }
+  .sweep-ports{
+    position:absolute; inset:0;
+    display:flex; flex-wrap:wrap; align-content:center;
+    gap:8px; padding:18px;
+  }
+  .sweep-port{
+    font-family:var(--mono);
+    font-size:10px;
+    padding:4px 8px;
+    border-radius:4px;
+    border:1px solid var(--border);
+    color:var(--text-faint);
+    background:var(--panel);
+    transition:all 0.3s;
+  }
+  .sweep-port.found{
+    color:var(--ok);
+    border-color:rgba(63,232,133,0.4);
+    background:rgba(63,232,133,0.08);
+    box-shadow:0 0 12px rgba(63,232,133,0.15);
+  }
+  .sweep-label{
+    position:absolute; bottom:10px; left:14px;
+    font-family:var(--mono); font-size:11px; color:var(--text-dim);
+  }
+
+  /* ---------- PROGRESS ---------- */
+  .progress-track{
+    height:6px; background:var(--bg); border-radius:99px; overflow:hidden;
+    border:1px solid var(--border);
+  }
+  .progress-fill{
+    height:100%; background:linear-gradient(90deg, var(--accent-dim), var(--accent));
+    width:0%; transition:width 0.3s ease;
+    box-shadow:0 0 10px var(--accent-glow);
+  }
+  .progress-meta{
+    display:flex; justify-content:space-between;
+    font-family:var(--mono); font-size:11px; color:var(--text-dim);
+    margin-top:8px;
+  }
+
+  /* ---------- CONSOLE LOG ---------- */
+  .console{
+    background:var(--bg);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    padding:12px 14px;
+    font-family:var(--mono);
+    font-size:11.5px;
+    color:var(--text-dim);
+    max-height:160px;
+    overflow-y:auto;
+  }
+  .console-line{ padding:2px 0; display:flex; gap:8px; }
+  .console-line .ts{ color:var(--text-faint); }
+  .console-line.stage-recon .tag{ color:var(--accent); }
+  .console-line.stage-cve .tag{ color:var(--med); }
+  .console-line.stage-web .tag{ color:var(--low); }
+  .console-line.stage-ai .tag{ color:var(--ok); }
+  .console-line .tag{ font-weight:700; }
+
+  /* ---------- FINDING CARDS ---------- */
+  .finding-grid{ display:flex; flex-direction:column; gap:10px; }
+  .finding{
+    background:var(--panel-raised);
+    border:1px solid var(--border);
+    border-left:3px solid var(--info);
+    border-radius:6px;
+    padding:14px 16px;
+  }
+  .finding.sev-CRITICAL{ border-left-color:var(--crit); }
+  .finding.sev-HIGH{ border-left-color:var(--high); }
+  .finding.sev-MEDIUM{ border-left-color:var(--med); }
+  .finding.sev-LOW{ border-left-color:var(--low); }
+  .finding.sev-INFO{ border-left-color:var(--info); }
+  .finding-top{ display:flex; align-items:center; gap:10px; margin-bottom:6px; flex-wrap:wrap; }
+  .sev-tag{
+    font-family:var(--mono); font-size:10px; font-weight:700;
+    padding:2px 8px; border-radius:4px; letter-spacing:0.5px;
+  }
+  .sev-tag.sev-CRITICAL{ background:rgba(255,71,87,0.15); color:var(--crit); }
+  .sev-tag.sev-HIGH{ background:rgba(255,140,66,0.15); color:var(--high); }
+  .sev-tag.sev-MEDIUM{ background:rgba(255,212,59,0.15); color:var(--med); }
+  .sev-tag.sev-LOW{ background:rgba(95,184,232,0.15); color:var(--low); }
+  .sev-tag.sev-INFO{ background:rgba(107,119,133,0.15); color:var(--info); }
+  .finding-title{ font-weight:600; font-size:13.5px; }
+  .finding-cat{ font-family:var(--mono); font-size:10px; color:var(--text-faint); margin-left:auto; }
+  .finding-desc{ color:var(--text-dim); font-size:12.5px; margin-bottom:8px; }
+  .finding-meta{ font-family:var(--mono); font-size:11px; color:var(--text-faint); background:var(--bg); padding:6px 10px; border-radius:4px; margin-bottom:6px; word-break:break-all; }
+  .finding-rec{ font-size:12px; color:var(--accent); }
+  .finding-rec b{ color:var(--text-dim); font-weight:600; }
+
+  /* ---------- STAT CHIPS ---------- */
+  .stat-row{ display:flex; gap:10px; flex-wrap:wrap; margin-bottom:18px; }
+  .stat-chip{
+    flex:1; min-width:110px;
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:8px;
+    padding:14px 16px;
+    text-align:left;
+  }
+  .stat-chip .num{ font-family:var(--mono); font-size:24px; font-weight:700; }
+  .stat-chip .lbl{ font-size:11px; color:var(--text-faint); text-transform:uppercase; letter-spacing:0.5px; margin-top:2px; }
+  .stat-chip.crit .num{ color:var(--crit); }
+  .stat-chip.high .num{ color:var(--high); }
+  .stat-chip.med .num{ color:var(--med); }
+  .stat-chip.low .num{ color:var(--low); }
+  .stat-chip.ok .num{ color:var(--ok); }
+
+  /* ---------- PORT TABLE ---------- */
+  table{ width:100%; border-collapse:collapse; font-size:12.5px; }
+  th{
+    text-align:left; font-family:var(--mono); font-size:10px; letter-spacing:0.5px;
+    text-transform:uppercase; color:var(--text-faint); padding:8px 10px;
+    border-bottom:1px solid var(--border);
+  }
+  td{ padding:9px 10px; border-bottom:1px solid var(--border-soft); }
+  tr:last-child td{ border-bottom:none; }
+  td.mono{ font-family:var(--mono); }
+  .port-pill{
+    font-family:var(--mono); font-size:11px; font-weight:700;
+    color:var(--accent); background:var(--accent-glow);
+    padding:2px 8px; border-radius:4px; display:inline-block;
+  }
+
+  /* ---------- EMPTY STATE ---------- */
+  .empty-state{
+    text-align:center; padding:50px 20px; color:var(--text-faint);
+  }
+  .empty-state svg{ width:36px; height:36px; opacity:0.3; margin-bottom:12px; }
+  .empty-state p{ font-size:13px; }
+
+  /* ---------- AI SUMMARY ---------- */
+  .ai-summary-box{
+    background:linear-gradient(135deg, rgba(63,208,232,0.06), transparent);
+    border:1px solid var(--accent-dim);
+    border-radius:8px;
+    padding:18px 20px;
+  }
+  .risk-badge{
+    display:inline-flex; align-items:center; gap:6px;
+    font-family:var(--mono); font-weight:800; font-size:13px;
+    padding:4px 12px; border-radius:99px; margin-bottom:12px;
+  }
+  .risk-badge.LOW{ background:rgba(63,232,133,0.15); color:var(--ok); }
+  .risk-badge.MEDIUM{ background:rgba(255,212,59,0.15); color:var(--med); }
+  .risk-badge.HIGH{ background:rgba(255,140,66,0.15); color:var(--high); }
+  .risk-badge.CRITICAL{ background:rgba(255,71,87,0.15); color:var(--crit); }
+  .priority-list{ list-style:none; margin-top:10px; }
+  .priority-list li{
+    display:flex; gap:10px; padding:7px 0;
+    border-bottom:1px solid var(--border-soft);
+    font-size:12.5px; color:var(--text-dim);
+  }
+  .priority-list li:last-child{ border-bottom:none; }
+  .priority-num{
+    font-family:var(--mono); font-weight:700; color:var(--accent);
+    flex-shrink:0;
+  }
+
+  /* ---------- CHAT ---------- */
+  .chat-box{ display:flex; flex-direction:column; height:380px; }
+  .chat-messages{ flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:10px; padding-bottom:12px; }
+  .chat-msg{ max-width:80%; padding:10px 13px; border-radius:8px; font-size:12.5px; line-height:1.5; }
+  .chat-msg.user{ align-self:flex-end; background:var(--accent-glow); color:var(--text); border:1px solid var(--accent-dim); }
+  .chat-msg.ai{ align-self:flex-start; background:var(--panel-raised); border:1px solid var(--border); color:var(--text-dim); }
+  .chat-input-row{ display:flex; gap:8px; margin-top:10px; }
+  .chat-input-row input{
+    flex:1; background:var(--bg); border:1px solid var(--border); color:var(--text);
+    padding:10px 12px; border-radius:var(--radius); font-family:var(--sans); font-size:13px; outline:none;
+  }
+  .chat-input-row input:focus{ border-color:var(--accent); }
+
+  /* ---------- MONITOR ---------- */
+  .gauge-row{ display:flex; gap:14px; flex-wrap:wrap; margin-bottom:18px; }
+  .gauge{
+    flex:1; min-width:140px; background:var(--panel); border:1px solid var(--border);
+    border-radius:8px; padding:16px; text-align:center;
+  }
+  .gauge-ring{ width:80px; height:80px; margin:0 auto 8px; position:relative; }
+  .gauge-ring svg{ transform:rotate(-90deg); }
+  .gauge-ring .bg{ stroke:var(--border); }
+  .gauge-ring .fg{ stroke:var(--accent); stroke-linecap:round; transition:stroke-dashoffset 0.4s; }
+  .gauge-val{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-family:var(--mono); font-weight:700; font-size:15px; }
+  .gauge-lbl{ font-size:11px; color:var(--text-faint); text-transform:uppercase; letter-spacing:0.5px; }
+  .alert-feed{ display:flex; flex-direction:column; gap:8px; max-height:340px; overflow-y:auto; }
+  .alert-item{
+    display:flex; gap:10px; padding:10px 12px; border-radius:6px;
+    background:var(--panel-raised); border:1px solid var(--border); border-left:3px solid var(--info);
+    font-size:12px;
+  }
+  .alert-item.WARNING{ border-left-color:var(--med); }
+  .alert-item.CRITICAL{ border-left-color:var(--crit); }
+  .alert-item .alert-time{ font-family:var(--mono); color:var(--text-faint); font-size:10px; white-space:nowrap; }
+  .alert-item .alert-body b{ display:block; margin-bottom:2px; }
+  .alert-item .alert-body p{ color:var(--text-dim); font-size:11.5px; }
+  .live-dot{ width:7px; height:7px; border-radius:50%; background:var(--ok); display:inline-block; margin-right:6px; box-shadow:0 0 8px var(--ok); animation:pulse-dot 1.6s infinite; }
+
+  /* ---------- HISTORY ---------- */
+  .history-item{
+    display:flex; align-items:center; gap:14px;
+    padding:12px 16px; background:var(--panel); border:1px solid var(--border);
+    border-radius:8px; margin-bottom:8px; cursor:pointer; transition:border-color 0.15s;
+  }
+  .history-item:hover{ border-color:var(--accent-dim); }
+  .history-target{ font-family:var(--mono); font-weight:600; font-size:13px; }
+  .history-meta{ font-size:11px; color:var(--text-faint); margin-top:2px; }
+  .history-type{
+    font-family:var(--mono); font-size:10px; padding:3px 9px; border-radius:99px;
+    background:var(--accent-glow); color:var(--accent); margin-left:auto;
+  }
+
+  /* responsive */
+  @media (max-width:880px){
+    .app{ grid-template-columns:1fr; grid-template-areas:"topbar" "main"; }
+    .sidebar{ display:none; }
+  }
+
+  .spinner{
+    width:14px; height:14px; border-radius:50%;
+    border:2px solid var(--border); border-top-color:var(--accent);
+    animation:spin 0.7s linear infinite; display:inline-block;
+  }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+
+  .hidden{ display:none !important; }
+</style>
+</head>
+<body>
+
+<div class="app" id="app">
+
+  <!-- TOP BAR -->
+  <div class="topbar">
+    <div class="brand">
+      <div class="brand-mark">
+        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 2L3 6V11C3 16.5 6.8 21.2 12 22.5C17.2 21.2 21 16.5 21 11V6L12 2Z" stroke="#3FD0E8" stroke-width="1.6" stroke-linejoin="round"/>
+          <path d="M9 12L11 14L15.5 9" stroke="#3FD0E8" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      RedShell <span class="brand-sub">Advanced Framework</span>
+    </div>
+    <div class="topbar-spacer"></div>
+    <div class="topbar-target" id="topbar-target">No active target</div>
+    <div class="ai-pill off" id="ai-pill"><span class="ai-dot"></span><span id="ai-pill-text">Checking AI status…</span></div>
+  </div>
+
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div class="nav-label">Assess</div>
+    <div class="nav-item active" data-view="overview">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+      Overview
+    </div>
+    <div class="nav-item" data-view="recon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+      Recon
+    </div>
+    <div class="nav-item" data-view="cve">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 9v4M12 17h.01M10.3 3.9L2.5 18a2 2 0 001.7 3h15.6a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/></svg>
+      CVE Intel
+    </div>
+    <div class="nav-item" data-view="web">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 010 18M12 3a14 14 0 000 18"/></svg>
+      Web Scan
+    </div>
+    <div class="nav-label">Defend</div>
+    <div class="nav-item" data-view="monitor">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+      Live Monitor
+      <span class="nav-badge" id="monitor-badge">0</span>
+    </div>
+    <div class="nav-label">Insight</div>
+    <div class="nav-item" data-view="ai">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2a4 4 0 014 4c0 1.5-.8 2.8-2 3.5V11h2a4 4 0 014 4v1a4 4 0 01-4 4H8a4 4 0 01-4-4v-1a4 4 0 014-4h2V9.5C8.8 8.8 8 7.5 8 6a4 4 0 014-4z"/></svg>
+      AI Analyst
+    </div>
+    <div class="nav-item" data-view="history">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 12a9 9 0 109-9 9.75 9.75 0 00-6.74 2.74L3 8"/><path d="M3 3v5h5M12 7v5l4 2"/></svg>
+      History
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <div class="main">
+
+    <!-- OVERVIEW -->
+    <div class="view active" id="view-overview">
+      <div class="view-header">
+        <div class="view-title">Full Assessment</div>
+        <div class="view-desc">Run recon, CVE correlation, a web scan, and AI risk analysis as one connected pipeline against a target you own or are authorized to test.</div>
+      </div>
+
+      <div class="legal-banner">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.3 3.9L2.5 18a2 2 0 001.7 3h15.6a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>
+        <div><b>Authorized use only.</b> Run this against systems you own or have explicit written permission to test — for example the bundled demo target at <code>localhost:5050</code>. Scanning systems without authorization may be illegal in your jurisdiction.</div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">Target Configuration</div>
+        <div class="field-row">
+          <div class="field">
+            <label>Host or IP (for recon + CVE)</label>
+            <input type="text" id="input-target" placeholder="e.g. 127.0.0.1 or localhost" value="127.0.0.1">
+          </div>
+          <div class="field">
+            <label>URL (for web scan)</label>
+            <input type="text" id="input-target-url" placeholder="e.g. http://127.0.0.1:5050" value="http://127.0.0.1:5050">
+          </div>
+          <button class="btn" id="btn-run-assessment">▶ Run Full Assessment</button>
+        </div>
+        <div class="checkrow">
+          <label class="checkitem"><input type="checkbox" id="chk-cve" checked> CVE correlation</label>
+          <label class="checkitem"><input type="checkbox" id="chk-web" checked> Web application scan</label>
+          <label class="checkitem"><input type="checkbox" id="chk-ai" checked> AI risk analysis</label>
+        </div>
+      </div>
+
+      <div class="sweep-stage" id="sweep-stage">
+        <div class="sweep-grid"></div>
+        <div class="sweep-line" id="sweep-line"></div>
+        <div class="sweep-ports" id="sweep-ports"></div>
+        <div class="sweep-label" id="sweep-label">Initializing…</div>
+      </div>
+
+      <div class="panel hidden" id="progress-panel">
+        <div class="panel-title">Pipeline Progress</div>
+        <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+        <div class="progress-meta"><span id="progress-stage">idle</span><span id="progress-pct">0%</span></div>
+        <div class="console" id="console-log" style="margin-top:14px;"></div>
+      </div>
+
+      <div id="overview-results"></div>
+    </div>
+
+    <!-- RECON -->
+    <div class="view" id="view-recon">
+      <div class="view-header">
+        <div class="view-title">Network Reconnaissance</div>
+        <div class="view-desc">TCP connect scan with service fingerprinting, banner grabbing, and lightweight OS detection.</div>
+      </div>
+      <div class="panel">
+        <div class="field-row">
+          <div class="field">
+            <label>Host or IP</label>
+            <input type="text" id="recon-target" placeholder="127.0.0.1" value="127.0.0.1">
+          </div>
+          <button class="btn" id="btn-run-recon">▶ Scan Ports</button>
+        </div>
+      </div>
+      <div id="recon-results"></div>
+    </div>
+
+    <!-- CVE -->
+    <div class="view" id="view-cve">
+      <div class="view-header">
+        <div class="view-title">CVE Intelligence</div>
+        <div class="view-desc">Correlates services discovered during recon against the NVD database (with an offline fallback dataset).</div>
+      </div>
+      <div class="panel">
+        <div class="field-row">
+          <div class="field">
+            <label>Host or IP</label>
+            <input type="text" id="cve-target" placeholder="127.0.0.1" value="127.0.0.1">
+          </div>
+          <button class="btn" id="btn-run-cve">▶ Scan &amp; Correlate</button>
+        </div>
+      </div>
+      <div id="cve-results"></div>
+    </div>
+
+    <!-- WEB -->
+    <div class="view" id="view-web">
+      <div class="view-header">
+        <div class="view-title">Web Application Scan</div>
+        <div class="view-desc">Detection-only checks: security headers, cookie flags, TLS hygiene, and safe reflected-input / SQL-error probes.</div>
+      </div>
+      <div class="panel">
+        <div class="field-row">
+          <div class="field">
+            <label>Target URL</label>
+            <input type="text" id="web-target" placeholder="http://127.0.0.1:5050" value="http://127.0.0.1:5050">
+          </div>
+          <button class="btn" id="btn-run-web">▶ Scan Application</button>
+        </div>
+      </div>
+      <div id="web-results"></div>
+    </div>
+
+    <!-- MONITOR -->
+    <div class="view" id="view-monitor">
+      <div class="view-header">
+        <div class="view-title"><span class="live-dot" id="monitor-live-dot" style="display:none;"></span>Live Host Monitor</div>
+        <div class="view-desc">Watches this machine's resource usage and network connections, flagging statistical and rule-based anomalies in real time.</div>
+      </div>
+      <div class="panel">
+        <div class="field-row">
+          <button class="btn" id="btn-start-monitor">▶ Start Monitoring</button>
+          <button class="btn secondary" id="btn-stop-monitor" disabled>■ Stop</button>
+          <button class="btn secondary" id="btn-clear-alerts">Clear Alerts</button>
+        </div>
+      </div>
+      <div class="gauge-row" id="monitor-gauges"></div>
+      <div class="panel">
+        <div class="panel-title">Alert Feed</div>
+        <div class="alert-feed" id="alert-feed">
+          <div class="empty-state">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+            <p>Start monitoring to see live system telemetry and alerts.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- AI -->
+    <div class="view" id="view-ai">
+      <div class="view-header">
+        <div class="view-title">AI Analyst</div>
+        <div class="view-desc">Ask questions about your most recent scan results. Powered by Claude when an API key is configured server-side; otherwise a rule-based summary is shown elsewhere in the app.</div>
+      </div>
+      <div class="panel">
+        <div class="panel-title">Chat about your last assessment</div>
+        <div class="chat-box">
+          <div class="chat-messages" id="chat-messages">
+            <div class="chat-msg ai">Run a Full Assessment first, then ask me things like "what should I fix first?" or "explain the SQLi finding".</div>
+          </div>
+          <div class="chat-input-row">
+            <input type="text" id="chat-input" placeholder="Ask about your scan results…">
+            <button class="btn btn-sm" id="btn-chat-send">Send</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- HISTORY -->
+    <div class="view" id="view-history">
+      <div class="view-header">
+        <div class="view-title">Scan History</div>
+        <div class="view-desc">Past assessments, stored locally in SQLite.</div>
+      </div>
+      <div id="history-list"></div>
+    </div>
+
+  </div>
+</div>
+
+<script src="/static/app.js"></script>
+
+</body>
+</html>
