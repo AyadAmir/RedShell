@@ -158,8 +158,6 @@ The dashboard's top-right pill shows **"AI Analyst Online"** when a key is detec
 
 ## Legal & Ethical Notes for your report
 
-You should include a section in your FYP report along these lines:
-
 > RedShell is designed around the principle of **authorized, non-destructive assessment**. All web application checks are detection-only: they identify indicators of potential vulnerabilities (e.g. unescaped reflected input, database error signatures) without exploiting them or extracting real data. This design choice reflects real-world DAST (Dynamic Application Security Testing) tool behavior — such as that used by OWASP ZAP or Burp Suite's passive scanner — and was a deliberate decision to keep the framework usable for ethical, authorized security testing only.
 
 This is a genuinely strong point to make to examiners — it shows you understand the *ethics* of security tooling, not just the technical implementation.
